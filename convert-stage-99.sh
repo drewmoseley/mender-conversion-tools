@@ -40,9 +40,9 @@ align_partition_size() {
   echo $lsize
 }
 
-if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] || [ -z "$4" ] || [ -z "$5" ]; then
+if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] || [ -z "$4" ] || [ -z "$5" ] || [ -z "$6" ]; then
     echo "Usage:"
-    echo "    $(basename $0) < rootfs part size > < data part size > < swap part size > < image-alignment > < platform >"
+    echo "    $(basename $0) < rootfs part size > < data part size > < swap part size > < image-alignment > < platform > < partition-table >"
     exit 1
 fi
 
@@ -51,6 +51,16 @@ data_part_size=$2
 swap_part_size=$3
 image_alignment=$4
 mender_platform=$5
+mender_partition=$6
+
+if [ "${mender_partition}" = "msdos" ]; then
+    MENDER_BOOT_DIR="boot/grub"
+elif [ "${mender_partition}" = "gpt" ]; then
+    MENDER_BOOT_DIR="boot/efi/EFI/ubuntu"
+else
+    echo "Unknown partition label ${mender_partition}. Exiting"
+    exit 1
+fi
 
 # Convert to 512 blocks
 rootfs_part_size=$(expr ${rootfs_part_size} \* 1024 \* 2)
@@ -157,7 +167,7 @@ else
     # the same 4 as above plus extended and swap
     number_of_partitions="6"
 fi
-
+set -x
 sdimg_path=${output_dir}/${device_type}-${artifact_name}.sdimg
 sdimg_size=$(expr ${image_alignment} \* ${number_of_partitions} + ${boot_part_size} + ${rootfs_part_size} \* 2 + ${data_part_size} + ${swap_part_size})
 
@@ -187,28 +197,38 @@ rootfsa_start=$(expr ${boot_part_end} + ${image_alignment} + 1)
 rootfsa_end=$(expr ${rootfsa_start} + ${rootfs_part_size} - 1)
 rootfsb_start=$(expr ${rootfsa_end} + ${image_alignment} + 1)
 rootfsb_end=$(expr ${rootfsb_start} + ${rootfs_part_size} - 1)
+ext_start="off"
 if [ ${swap_part_size} -eq 0 ]; then
     data_start=$(expr ${rootfsb_end} + ${image_alignment} + 1)
     data_end=$(expr ${data_start} + ${data_part_size} - 1)
 else
-    ext_start=$(expr ${rootfsb_end} + ${image_alignment} + 1)
-    # Note that since the extended partition contains the data partition
-    # rather than preceding it on the disk, we don't need to add 1 here.
-    swap_start=$(expr ${ext_start} + ${image_alignment})
-    swap_end=$(expr ${swap_start} + ${swap_part_size} - 1)
-    data_start=$(expr ${swap_end} + ${image_alignment} + 1)
-    data_end=$(expr ${data_start} + ${data_part_size} - 1)
+    if [ "${mender_partition}" = "msdos" ]; then
+        # With MSDOS partitioning we have to use extended and logical partitions
+        ext_start=$(expr ${rootfsb_end} + ${image_alignment} + 1)
+        # Note that since the extended partition contains the data partition
+        # rather than preceding it on the disk, we don't need to add 1 here.
+        swap_start=$(expr ${ext_start} + ${image_alignment})
+        swap_end=$(expr ${swap_start} + ${swap_part_size} - 1)
+        data_start=$(expr ${swap_end} + ${image_alignment} + 1)
+        data_end=$(expr ${data_start} + ${data_part_size} - 1)
+    else
+        # Using GPT partitioning we don't have to use extended partitions
+        data_start=$(expr ${rootfsb_end} + ${image_alignment} + 1)
+        data_end=$(expr ${data_start} + ${data_part_size} - 1)
+        swap_start=$(expr ${data_end} + ${image_alignment} + 1)
+        swap_end=$(expr ${swap_start} + ${swap_part_size} - 1)
+    fi
 fi
 
 echo "boot_start: ${boot_part_start}"
 echo "rootfsa_start: ${rootfsa_start}"
 echo "rootfsb_start: ${rootfsb_start}"
-[ ${swap_part_size} -ne 0 ] && echo "ext_start: ${ext_start}"
+[ ${ext_start} != "off" ] && echo "ext_start: ${ext_start}"
 echo "data_start: ${data_start}"
 [ ${swap_part_size} -ne 0 ] && echo "swap_start: ${swap_start}"
 
 # Create partition table
-parted -s ${sdimg_path} mklabel msdos
+parted -s ${sdimg_path} mklabel ${mender_partition}
 # Create boot partition and mark it as bootable
 parted -s ${sdimg_path} unit s mkpart primary fat32 ${boot_part_start} ${boot_part_end}
 parted -s ${sdimg_path} set 1 boot on
@@ -217,7 +237,7 @@ parted -s ${sdimg_path} -- unit s mkpart primary ext2 ${rootfsb_start} ${rootfsb
 if [ ${swap_part_size} -eq 0 ]; then
     parted -s ${sdimg_path} -- unit s mkpart primary ext2 ${data_start} ${data_end}
 else
-    parted -s ${sdimg_path} -- unit s mkpart extended ${ext_start} 100%
+    [ ${ext_start} != "off" ] && parted -s ${sdimg_path} -- unit s mkpart extended ${ext_start} 100%
     parted -s ${sdimg_path} -- unit s mkpart logical linux-swap ${swap_start} ${swap_end}
     parted -s ${sdimg_path} -- unit s mkpart logical ext2 ${data_start} ${data_end}
 fi
@@ -277,30 +297,45 @@ pc_ubuntu_cleanup() {
     mkdir ${MNT}
 
     sudo -S mount /dev/mapper/${mappings[1]} ${MNT}
-    sudo -S mount /dev/mapper/${mappings[0]} ${MNT}/boot/grub
+    sudo -S mount /dev/mapper/${mappings[0]} ${MNT}/${MENDER_BOOT_DIR}
     for i in /dev /dev/pts /proc /sys /run; do
         sudo mount -B $i ${MNT}/$i
     done
 
     set -x
-    sudo chroot ${MNT} grub-install --target=i386-pc \
-         --modules "boot linux ext2 fat serial part_msdos part_gpt normal \
-			iso9660 configfile search loadenv test cat echo \
-			gcry_sha256 halt hashsum loadenv reboot biosdisk \
-			serial terminal" \
+    MODULES="boot linux ext2 fat serial part_msdos part_gpt normal \
+	     iso9660 configfile search loadenv test cat echo \
+             gcry_sha256 halt hashsum loadenv reboot \
+             serial terminal"
+    [ "${mender_partition}" = "msdos" ] && MODULES="${MODULES} biosdisk"
+    if [ -d ${MNT}/usr/lib/grub/i386-pc ]; then
+        GRUB_TARGET="i386-pc"
+    elif [ -d ${MNT}/usr/lib/grub/x86_64-efi ]; then
+        GRUB_TARGET="x86_64-efi"
+    else
+        echo "Unable to determine GRUB_TARGET to install. Exiting"
+        exit 1
+    fi
+    sudo chroot ${MNT} grub-install --target=${GRUB_TARGET} \
+         --modules "${MODULES}" \
          /dev/${mappings[0]%p*}
     set +x
 
     for i in /dev/pts /dev /proc /sys /run; do
         sudo umount ${MNT}/$i
     done
-    sudo -S umount ${MNT}/boot/grub
+    sudo -S umount ${MNT}/${MENDER_BOOT_DIR}
     sudo -S umount ${MNT}
 }
 
 add_partition_mappings ${sdimg_path}
 if [ ${swap_part_size} -ne 0 ]; then
-    sudo mkswap /dev/mapper/${mappings[4]}
+    if [ "${ext_start}" = "off" ]; then
+        SWAP_PART_LOCAL=${mappings[4]}
+    else
+        SWAP_PART_LOCAL=${mappings[5]}
+    fi
+    sudo mkswap /dev/mapper/${SWAP_PART_LOCAL}
 fi
 
 # Platform specific cleanup

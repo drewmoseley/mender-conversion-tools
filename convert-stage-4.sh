@@ -22,15 +22,28 @@ set -e
 
 echo "Running: $(basename $0)"
 echo "args: $#"
-if [ -z "$1" ] || [ -z "$2" ]; then
-    echo "Usage: $(basename $0) swap-part-size platform"
+if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ]; then
+    echo "Usage: $(basename $0) swap-part-size platform partition-table"
     echo "Current supported platforms:"
     echo "    rpi-ubuntu"
     echo "    pc-ubuntu"
+    echo "Current supported partition tables:"
+    echo "    msdos"
+    echo "    gpt"
     exit 1
 fi
 swap_part_size="$1"
 mender_platform="$2"
+mender_partition="$3"
+
+if [ "${mender_partition}" = "msdos" ]; then
+    MENDER_BOOT_DIR="boot/grub"
+elif [ "${mender_partition}" = "gpt" ]; then
+    MENDER_BOOT_DIR="boot/efi/EFI/ubuntu"
+else
+    echo "Unknown partition label ${mender_partition}. Exiting"
+    exit 1
+fi
 
 platform_raspberrypi() {
     local bin_dir_pi=${bin_dir}/raspberrypi
@@ -102,7 +115,7 @@ platform_pc_ubuntu() {
 #
 /dev/root         /          auto       defaults         1  1
 LABEL=data        /data      auto       defaults         0  0
-/dev/sda1         /boot/grub auto       defaults         0  0
+/dev/sda1         /${MENDER_BOOT_DIR} auto       defaults         0  0
 EOF
     if [ ${swap_part_size} -ne 0 ]; then
         cat <<- EOF >> $output_dir/fstab
@@ -112,8 +125,9 @@ EOF
 
     sudo install -m 0644 ${output_dir}/fstab ${output_dir}/rootfs/etc/fstab
 
-    sudo mv ${output_dir}/rootfs/boot/grub ${output_dir}/rootfs/boot/grub.ubuntu-stock
-    sudo mkdir ${output_dir}/rootfs/boot/grub
+    [ -d ${output_dir}/rootfs/${MENDER_BOOT_DIR} ] && \
+    sudo mv ${output_dir}/rootfs/${MENDER_BOOT_DIR} ${output_dir}/rootfs/${MENDER_BOOT_DIR}.ubuntu-stock
+    sudo mkdir -p ${output_dir}/rootfs/${MENDER_BOOT_DIR}
 
     if [ ! -f ${output_dir}/boot-part-env ]; then
         echo "${output_dir}/boot-part-env: not found"
@@ -131,13 +145,13 @@ EOF
     (fsck.vfat ${output_dir}/boot.vfat || true)
     fatlabel ${output_dir}/boot.vfat BOOT
 
-    # Populate the boot/grub partition
-    mkdir -p ${output_dir}/boot/grub
-    sudo mount -o loop ${output_dir}/boot.vfat ${output_dir}/boot/grub
-    sudo rsync -aq --no-o --no-p --no-g --safe-links --delete ${application_dir}/pc-grub/ ${output_dir}/boot/grub/
-    sudo umount ${output_dir}/boot/grub
+    # Populate the boot/grub/EFI partition
+    mkdir -p ${output_dir}/${MENDER_BOOT_DIR}
+    sudo mount -o loop ${output_dir}/boot.vfat ${output_dir}/${MENDER_BOOT_DIR}
+    sudo rsync -aq --no-o --no-p --no-g --safe-links --delete ${application_dir}/pc-grub/ ${output_dir}/${MENDER_BOOT_DIR}
+    sudo umount ${output_dir}/${MENDER_BOOT_DIR}
 
-    echo "ENV_DIR = /boot/grub" > ${output_dir}/data/mender_grubenv.config
+    echo "ENV_DIR = /${MENDER_BOOT_DIR}" > ${output_dir}/data/mender_grubenv.config
     sudo ln -fs /data/mender_grubenv.config ${output_dir}/rootfs/etc/mender_grubenv.config
 }
 
