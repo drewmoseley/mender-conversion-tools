@@ -6,3 +6,4 @@ mender_local_config
 *.xml
 *.html
 convert.log
+rootfs_overlay_freewire
