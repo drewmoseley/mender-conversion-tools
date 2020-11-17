@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# Mender state script to verify the status of the system
+# before installing an updated Boost backend.
+#
+
+# Return codes processed by the mender client:
+
+# Wait and rerun this script after a delay. Interval is set as StateScriptRetryIntervalSeconds in mender.conf
+RETRY_LATER=21
+# Error out and fail the deployment.
+FAIL=1
+# Allow the state change to proceed.
+OK=0
+
+# No current checks. Always return OK
+exit ${OK}

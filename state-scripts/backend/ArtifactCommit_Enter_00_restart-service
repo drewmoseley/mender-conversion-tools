@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Mender state script to restart services after the
+# updated Boost backend files are installed
+#
+
+# Return codes processed by the mender client:
+
+# Wait and rerun this script after a delay. Interval is set as StateScriptRetryIntervalSeconds in mender.conf
+RETRY_LATER=21
+# Error out and fail the deployment.
+FAIL=1
+# Allow the state change to proceed.
+OK=0
+
+RC=${OK}
+if [ -f /etc/init.d/kura ]; then
+    /etc/init.d/kura stop
+fi
+
+# Any non-zero return code from stopping kura will result in deployment failure.
+[ $? == 0 ] || RC=${FAIL}
+
+exit ${RC}
