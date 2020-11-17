@@ -8,3 +8,10 @@ MENDER_BOOT_PART_SIZE_MB="256"
 MENDER_GRUB_KERNEL_BOOT_ARGS="\${bootargs} usbhid.quirks=0xFFFF:0x0005:0x0004 intel_idle.max_cstate=1 quiet"
 MENDER_GRUB_INITRD_IMAGETYPE="microcode.cpio"
 MENDER_ROOT_PART_MKFS_OPTS="-O ^64bit,uninit_bg"
+
+function user_local_modify() {
+    set +u
+    run_and_log_cmd "sudo mkdir -p work/rootfs/usr/share/mender/modules/v3/"
+    run_and_log_cmd "wget -Nq https://raw.githubusercontent.com/mendersoftware/mender-update-modules/master/dir-overlay/module/dir-overlay -P work/rootfs/usr/share/mender/modules/v3/"
+    run_and_log_cmd "chmod +x work/rootfs/usr/share/mender/modules/v3/dir-overlay"
+}
