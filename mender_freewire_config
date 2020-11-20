@@ -12,6 +12,12 @@ MENDER_ROOT_PART_MKFS_OPTS="-O ^64bit,uninit_bg"
 function user_local_modify() {
     set +u
     run_and_log_cmd "sudo mkdir -p work/rootfs/usr/share/mender/modules/v3/"
+
+    # Download the dir-overlay update module; used for the backend artifact type
     run_and_log_cmd "wget -Nq https://raw.githubusercontent.com/mendersoftware/mender-update-modules/master/dir-overlay/module/dir-overlay -P work/rootfs/usr/share/mender/modules/v3/"
     run_and_log_cmd "chmod +x work/rootfs/usr/share/mender/modules/v3/dir-overlay"
+
+    # Download the directory update module; used for the frontend artifact type
+    run_and_log_cmd "wget -Nq https://raw.githubusercontent.com/mendersoftware/mender/master/support/modules/directory -P work/rootfs/usr/share/mender/modules/v3/"
+    run_and_log_cmd "chmod +x work/rootfs/usr/share/mender/modules/v3/directory"
 }
