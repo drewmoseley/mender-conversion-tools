@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# Modify the RpI Frontend to be read-write and reboot it.
+#
+
+# Return codes processed by the mender client:
+
+# Wait and rerun this script after a delay. Interval is set as StateScriptRetryIntervalSeconds in mender.conf
+RETRY_LATER=21
+# Error out and fail the deployment.
+FAIL=1
+# Allow the state change to proceed.
+OK=0
+
+RC=${OK}
+
+sshpass -p xxx ssh -o StrictHostKeyChecking=no pi@172.16.0.11 sudo sed -i 's+#init=/sbin/overlayRoot.sh+init=/sbin/overlayRoot.sh+g' "/boot/cmdline.txt"
+echo Removed read write access to screen file system >&2
+sshpass -p xxx ssh -o StrictHostKeyChecking=no pi@172.16.0.11 sudo reboot
+
+return ${RC}
