@@ -19,7 +19,7 @@ if [ -n "$3" ] ; then
 else
     BOOST_BUILD_DIR="$(pwd)"
 fi
-if [ ! -d "${BOOST_BUILD_DIR}" ]; then
+if [ -z "${MENDER_OUTPUT_ARTIFACT}" ] || [ -z "${MENDER_ARTIFACT_NAME}" ] || [ ! -d "${BOOST_BUILD_DIR}" ]; then
     echo "Usage: $0 output-artifact-file-name artifact-name [boost-build-dir]"
     exit 0
 fi

@@ -19,7 +19,7 @@ if [ -n "$3" ] ; then
 else
     FRONTEND_BUILD_DIR="$(pwd)"
 fi
-if [ ! -d "${FRONTEND_BUILD_DIR}/build" ]; then
+if [ -z "${MENDER_OUTPUT_ARTIFACT}" ] || [ -z "${MENDER_ARTIFACT_NAME}" ] || [ ! -d "${FRONTEND_BUILD_DIR}/build" ]; then
     echo "Usage: $0 output-artifact-file-name artifact-name [frontend-build-dir]"
     exit 0
 fi
