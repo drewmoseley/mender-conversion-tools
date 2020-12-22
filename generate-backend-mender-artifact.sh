@@ -1,11 +1,41 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Generate a Boost-backend installation Mender artifact
 #
-
 # This has to match what is defined in mender_freewire_config
 DEVICE_TYPE="reliagate_20_25"
 
+echo "Version number being used is $2"
+version=$2
+echo $version
+JFROG_URL=https://freewiretech.jfrog.io/freewiretech/libs-release-local/com/freewire/mobi/
+
+#set file names, add version
+bVersion='boost-'$version'.dp'
+comVersion='com.freewire.common-'$version'.dp'
+canVersion='com.freewire.canconnectorimpl-'$version'.dp'
+cloudVersion='com.freewire.cloudpayloaduploader-'$version'.dp'
+displayVersion='com.freewire.display-'$version'.dp'
+echo $bversion
+
+#pull files from JROG
+function get_dp_from_artifactory(){
+	FILENAME=$1
+	echo "Getting File from Artifactory: $0"
+	URL=$JFROG_URL$1"/"$2"/"$1"-"$2".dp"
+	echo $JFROG_URL$1"/"$2"/"$1"-"$2".dp"
+	echo $FILENAME
+	curl -u freewire-dev:tE11$Tlpyl^j -o $FILENAME-$version.dp $URL
+
+}
+
+get_dp_from_artifactory /home/mario/BOOST_DIR/boost/build/distributions/boost $1
+get_dp_from_artifactory /home/mario/BOOST_DIR/boost/build/distributions/com.freewire.common $1
+get_dp_from_artifactory /home/mario/BOOST_DIR/boost/build/distributions/com.freewire.canconnectorimpl $1
+get_dp_from_artifactory /home/mario/BOOST_DIR/boost/build/distributions/com.freewire.cloudpayloaduploader $1
+get_dp_from_artifactory /home/mario/BOOST_DIR/boost/build/distributions/com.freewire.display $1
+
+#create artifact
 MENDER_OUTPUT_ARTIFACT="$1"
 if [ -f "${MENDER_OUTPUT_ARTIFACT}" ]; then
     echo "Output file ${MENDER_OUTPUT_ARTIFACT} already exists. Remove it before running $0"
@@ -13,7 +43,6 @@ if [ -f "${MENDER_OUTPUT_ARTIFACT}" ]; then
 fi
 
 MENDER_ARTIFACT_NAME="$2"
-
 if [ -n "$3" ] ; then
     BOOST_BUILD_DIR="$3"
 else
@@ -39,13 +68,17 @@ trap exit_it INT
 #
 # Create directory overlay contents
 #
+echo $DEVICE_TYPE
+
+
+ 
 mkdir -p ${ARTIFACT_DIR}/rootfs/opt/eurotech/esf/kura/packages
-cp ${BOOST_BUILD_DIR}/boost.dpa.properties ${ARTIFACT_DIR}/rootfs/opt/eurotech/esf/kura/
-cp ${BOOST_BUILD_DIR}/boost/build/distributions/boost-1.1.0.dp \
-   ${BOOST_BUILD_DIR}/com.freewire.common/build/distributions/com.freewire.common-1.1.0.dp \
-   ${BOOST_BUILD_DIR}/com.freewire.canconnectorimpl/build/distributions/com.freewire.canconnectorimpl-1.1.0.dp \
-   ${BOOST_BUILD_DIR}/com.freewire.cloudpayloaduploader/build/distributions/com.freewire.cloudpayloaduploader-1.1.0.dp \
-   ${BOOST_BUILD_DIR}/com.freewire.display/build/distributions/com.freewire.display-1.1.0.dp \
+cp ${BOOST_BUILD_DIR}/boost/dpa.properties ${ARTIFACT_DIR}/rootfs/opt/eurotech/esf/kura/
+cp ${BOOST_BUILD_DIR}/boost/build/distributions/$bVersion \
+   ${BOOST_BUILD_DIR}/boost/build/distributions/$comVersion \
+   ${BOOST_BUILD_DIR}/boost/build/distributions/$canVersion \
+   ${BOOST_BUILD_DIR}/boost/build/distributions/$cloudVersion \
+   ${BOOST_BUILD_DIR}/boost/build/distributions/$displayVersion \
    ${ARTIFACT_DIR}/rootfs/opt/eurotech/esf/kura/packages
 
 #

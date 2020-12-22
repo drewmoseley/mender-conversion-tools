@@ -1,10 +1,47 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Generate a RpI-frontend installation Mender artifact
 #
 
 # This has to match what is defined in mender_freewire_config
 DEVICE_TYPE="reliagate_20_25"
+
+echo "Version number being used is $2"
+version=$2
+echo $version
+
+echo "Directory is $3"
+directory=$3
+echo $directory
+
+if [ -d "/home/mario/BOOST_DIR/frontend_directories" ] 
+then
+    #delete directory and recreate
+    echo "Directory /frontend_directories exists ."
+    rm -r /home/mario/BOOST_DIR/frontend_directories
+    mkdir /home/mario/BOOST_DIR/frontend_directories
+else
+    echo "Error:  /frontend_directories does not exists."
+    mkdir /home/mario/BOOST_DIR/frontend_directories
+fi
+
+cd /home/mario/BOOST_DIR/frontend_directories
+git clone https://ACRUNNER2020:f341d9567e63e74deee3f6c09911c458ed2053de@github.com/FreeWireTech/boost-ui.git
+cd boost-ui/frontend
+pwd
+git checkout master
+git pull
+npm install
+npm run build --prod
+cd ..
+cd ..
+pwd
+cp -r /home/mario/BOOST_DIR/frontend_directories/boost-ui/frontend/build .
+cp -r /home/mario/BOOST_DIR/frontend_directories/boost-ui/lighting-controller .
+rm -rf boost-ui
+
+
+
 
 MENDER_OUTPUT_ARTIFACT="$1"
 if [ -f "${MENDER_OUTPUT_ARTIFACT}" ]; then
@@ -57,3 +94,4 @@ PATH=${ARTIFACT_DIR}:${PATH} ${ARTIFACT_DIR}/directory-artifact-gen \
 # Exit and cleanup
 #
 exit_it
+
