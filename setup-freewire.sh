@@ -11,6 +11,9 @@ export MENDER_ARTIFACT_NAME="release-1"
 
 #### No need to configure anything below here.
 
+# Extract the backend binaries into the rootfs overlay
+sudo tar -C rootfs_overlay_freewire -xf backend-binaries.tar
+
 # Blacklist the active and passive partitions from being automounted
 sudo mkdir -p rootfs_overlay_freewire/etc/udev/mount.blacklist.d/
 echo '/dev/mmcblk0p1' | sudo tee rootfs_overlay_freewire/etc/udev/mount.blacklist.d/mender >/dev/null
