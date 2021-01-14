@@ -14,10 +14,12 @@ FAIL=1
 OK=0
 
 RC=${OK}
-if [ -f /etc/init.d/kura ]; then
-    /etc/init.d/kura stop
-fi
 
+systemctl stop kura
+# Any non-zero return code from stopping kura will result in deployment failure.
+[ $? == 0 ] || RC=${FAIL}
+
+systemctl start kura
 # Any non-zero return code from stopping kura will result in deployment failure.
 [ $? == 0 ] || RC=${FAIL}
 
